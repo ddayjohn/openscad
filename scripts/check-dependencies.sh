@@ -190,47 +190,33 @@ gmp_sysver()
 
 qt_sysver()
 {
-  if [ -d '/usr/lib/qtchooser' ]; then
-    . <(/usr/lib/qtchooser/qtchooser -print-env)
-    PATH=$PATH:$QTTOOLDIR
-  fi
-  if [ "`command -v qtchooser`" ]; then
-    qtver=`qtchooser -run-tool=qmake -qt=5 -v 2>&1`
-    if [ $? -eq 0 ] ; then
-      export QT_SELECT=5
-    fi
-    qtver=`echo "$qtver" | grep "Using Qt version" | awk '{print $4}'`
-  else
-    export QT_SELECT=5
-    qtpath=$1/include/qt5/QtCore
-    if [ ! -e $qtpath ]; then
-      qtpath=$1/include/i686-linux-gnu/qt5/QtCore
-    fi
-    if [ ! -e $qtpath ]; then
-      qtpath=$1/include/x86_64-linux-gnu/qt5/QtCore
-    fi
-  fi
-  if [ -z "$qtver" ]; then
-    if [ ! -e "$qtpath" ]; then
-      unset QT_SELECT
-      return
-    fi
-    qtver=`grep 'define  *QT_VERSION_STR  *' "$qtpath"/qglobal.h`
-    # fix for Qt 5.7
-    if [ -z "$qtver" ]; then
-      if [ -e "$qtpath/qconfig-32.h" ]; then
-        QCONFIG="qconfig-32.h"
-      elif [ -e "$qtpath/qconfig-64.h" ]; then
-        QCONFIG="qconfig-64.h"
-      else
-        QCONFIG="qconfig.h"
+    for qmake_cmd in qmake6 qmake; do
+    if [ "`command -v $qmake_cmd`" ]; then
+      qtver=`$qmake_cmd -query QT_VERSION 2>/dev/null`
+      if [ $? -eq 0 ] && [ -n "$qtver" ]; then
+        qt_sysver_result=$qtver
+        break;
       fi
-      qtver=`grep 'define  *QT_VERSION_STR  *' "$qtpath"/$QCONFIG`
     fi
-
-    qtver=`echo $qtver | awk '{print $3}' | sed s/'"'//g`
+  done
+  
+  
+  if [ -z "$qt_sysver_result" ]; then
+  for syspath in $OPENSCAD_LIBRARIES "/usr/local" "/opt/local" "/usr/pkg" "/usr"; do
+    for qfile in "qconfig.h" "qconfig-64.h" "qconfig-32.h" "qglobal.h"; do
+      qtver=`find "$syspath/include" -name "$qfile" 2>/dev/null \
+        | sort -rV \
+        | xargs grep -h 'define *QT_VERSION_STR' 2>/dev/null \
+        | awk '{print $3}' \
+        | sed s/'"'//g \
+        | head -1`
+      if [ -n "$qtver" ]; then
+        qt_sysver_result=$qtver
+        break;
+      fi
+    done
+  done
   fi
-  qt_sysver_result=$qtver
 }
 
 qscintilla2_sysver()
